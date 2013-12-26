@@ -47,10 +47,7 @@ object SocrataEvents extends Build {
       discoveredMainClasses in Compile := Seq("com.socrata.eventlog.Main"),
       resourceGenerators in Compile <+= (resourceManaged in Compile, version in Compile, scalaVersion in Compile) map tagVersion,
     jarName in assembly <<= name(_ + "-jar-with-dependencies.jar"),
-    dependenciesSnippet :=
-      <xml.group>
-        <exclude org="javax.servlet" module="servlet-api" />
-      </xml.group>
+    resolvers += "twitter-maven" at "http://maven.twttr.com"
   )
   )
 }
