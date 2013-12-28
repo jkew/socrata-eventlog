@@ -17,12 +17,14 @@ import scala.util.Random
 object EventServer extends TwitterServer with UnhandledErrorListener with ConnectionStateListener {
 
   val zkConnect = flag("zk", "localhost:2181", "zookeeper connection string")
+  val amqUri = flag("amqUri", "tcp://localhost:61616", "amq connection string")
+
   val zkMinRetryInterval = 60000
   val zkRetries = 10
   val client = CuratorFrameworkFactory.newClient(zkConnect(), new RetryNTimes(zkRetries, zkMinRetryInterval + Random.nextInt(zkMinRetryInterval)))
   client.getUnhandledErrorListenable.addListener(this)
   client.getConnectionStateListenable.addListener(this)
-  val processor = new EventLogProcessor(client)
+  val processor = new EventLogProcessor(client, amqUri())
 
   val helloService: Service[HttpRequest, HttpResponse] = new Service[HttpRequest, HttpResponse] {
     def apply(request: HttpRequest) = {
