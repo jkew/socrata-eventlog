@@ -1,50 +1,55 @@
 package com.socrata.eventlog
 
-import com.twitter.finagle.{Service, Http}
+import com.twitter.finagle.Service
 import org.jboss.netty.handler.codec.http._
-import com.twitter.util.{Await, Future}
-import org.jboss.netty.buffer.ChannelBuffers.copiedBuffer
-import org.jboss.netty.util.CharsetUtil.UTF_8
+import com.twitter.util.Await
 import com.twitter.server.TwitterServer
 import com.twitter.finagle.http.HttpMuxer
 import com.netflix.curator.framework.{CuratorFramework, CuratorFrameworkFactory}
-import com.netflix.curator.retry.RetryNTimes
 import com.netflix.curator.framework.state.{ConnectionStateListener, ConnectionState}
 import com.netflix.curator.framework.api.UnhandledErrorListener
-import scala.util.Random
+import com.netflix.curator.{RetrySleeper, RetryPolicy}
 
-
+/**
+ * Tests:
+ *   - Verify start/stop is clean
+ *   - Verify start/stop with initially down ZK is clean
+ *   - Verify start/stop with failing ZK is clean
+ */
 object EventServer extends TwitterServer with UnhandledErrorListener with ConnectionStateListener {
 
   val zkConnect = flag("zk", "localhost:2181", "zookeeper connection string")
   val amqUri = flag("amqUri", "tcp://localhost:61616", "amq connection string")
+  val store = new MemoryEventStore
 
   val zkMinRetryInterval = 60000
-  val zkRetries = 10
-  val client = CuratorFrameworkFactory.newClient(zkConnect(), new RetryNTimes(zkRetries, zkMinRetryInterval + Random.nextInt(zkMinRetryInterval)))
+  val zkRetries = 1
+
+  // Very pessimistic; if we cannot connect to zookeeper; don't bother retrying
+  val client = CuratorFrameworkFactory.newClient(zkConnect(), new RetryPolicy {
+    def allowRetry(retryCount: Int, elapsedTimeMs: Long, sleeper: RetrySleeper) = {
+      Thread.sleep(60000)
+      false
+    }
+  })
   client.getUnhandledErrorListenable.addListener(this)
   client.getConnectionStateListenable.addListener(this)
-  val processor = new EventLogProcessor(client, amqUri())
+  val processor = new EventLogProcessor(client, store, amqUri())
 
-  val helloService: Service[HttpRequest, HttpResponse] = new Service[HttpRequest, HttpResponse] {
-    def apply(request: HttpRequest) = {
-      val response =
-        new DefaultHttpResponse(request.getProtocolVersion, HttpResponseStatus.OK)
-      response.setContent(copiedBuffer("hello", UTF_8))
-      Future(response)
-    }
-  }
 
   def main() = {
     log.info("Starting server with port: " + adminPort)
-    HttpMuxer.addHandler("/hello", helloService)
+    HttpMuxer.addHandler("/eventlog/", new EventLogService(store))
 
     // Connect to Zookeeper
     client.start()
 
     onExit {
+      log.info("Shutting down processor")
       processor.close()
+      log.info("Shutting down ZK Client")
       client.close()
+      log.info("Shutting down http server")
       adminHttpServer.close()
     }
 
@@ -69,7 +74,6 @@ object EventServer extends TwitterServer with UnhandledErrorListener with Connec
   }
   
   def die() {
-    onExit()
     System.exit(1)
   }
 }
