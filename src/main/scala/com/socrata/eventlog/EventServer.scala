@@ -1,14 +1,38 @@
 package com.socrata.eventlog
 
-import com.twitter.finagle.Service
-import org.jboss.netty.handler.codec.http._
 import com.twitter.util.Await
 import com.twitter.server.TwitterServer
-import com.twitter.finagle.http.HttpMuxer
+import com.twitter.finagle.http.{Request, Response, Method, HttpMuxer}
 import com.netflix.curator.framework.{CuratorFramework, CuratorFrameworkFactory}
 import com.netflix.curator.framework.state.{ConnectionStateListener, ConnectionState}
 import com.netflix.curator.framework.api.UnhandledErrorListener
 import com.netflix.curator.{RetrySleeper, RetryPolicy}
+import com.twitter.finagle.http.service.RoutingService
+import com.twitter.finagle.http.path._
+import com.twitter.finagle.Service
+import com.twitter.finagle
+import org.jboss.netty.handler.codec.http.HttpResponseStatus
+import com.twitter.util.Future
+
+
+class ErrorService(method:Object, path:Path) extends finagle.Service[Request, Response] {
+  def apply(request: Request) = {
+    val response = Response(request.getProtocolVersion, HttpResponseStatus.NOT_FOUND)
+    Future(response)
+  }
+}
+
+object Router {
+  val service = RequestRouter.byRequest {
+    request =>
+    (request.method, Path(request.path)) match {
+      case Method.Get -> Root / "eventlog" / eventType / Long(since) => new EventLogService(Some(eventType), since, EventServer.store)
+      case Method.Get -> Root / "eventlog" / Long(since) => new EventLogService(None, since, EventServer.store)
+      case Method.Get -> Root / "eventlog" => new EventListService(EventServer.store)
+      case m -> p => new ErrorService(m, p)
+    }
+  }
+}
 
 /**
  * Tests:
@@ -39,11 +63,12 @@ object EventServer extends TwitterServer with UnhandledErrorListener with Connec
 
   def main() = {
     log.info("Starting server with port: " + adminPort)
-    HttpMuxer.addHandler("/eventlog/", new EventLogService(store))
 
+
+    //HttpMuxer.addHandler("/eventlog/", new EventLogService(store))
+    HttpMuxer.addRichHandler("/eventlog/", Router.service)
     // Connect to Zookeeper
     client.start()
-
     onExit {
       log.info("Shutting down processor")
       processor.close()

@@ -9,7 +9,7 @@ import com.socrata.eurybates.Message
 import org.apache.zookeeper.CreateMode
 import java.util.UUID
 import com.rojoma.json.jpath.JPath
-import com.rojoma.json.ast.{JValue, JObject}
+import com.rojoma.json.ast.{JNumber, JString, JValue, JObject}
 import com.rojoma.json.zipper.JsonZipper
 
 /**
@@ -53,12 +53,14 @@ class GenericConsumer(store:EventStore) extends Service {
     val tag = message.tag.toString
     val eventData = message.details.asInstanceOf[JObject].fields.flatMap {
       case (key:String,jv:JObject) => jv.get("id") match {
-        case Some(id) => List((key, id.toString()))
+        case Some(id) => List((key, id.asInstanceOf[JString].string))
         case None => Nil
       }
-      case (key:String,jv:JValue) => List((key, jv.toString()))
+      case (key:String,jv:JNumber) => List((key, jv.toString))
+      case (key:String,jv:JString) => List((key, jv.string))
+
     }
-    store.addEvent(tag, eventData.toMap[String, String])
+    store.addEvent(tag.toLowerCase, eventData.toMap[String, String])
     println(tag + ": " + eventData)
   }
 }

@@ -6,5 +6,7 @@ package com.socrata.eventlog
 trait EventStore {
   def eventTypes:Seq[String]
   def addEvent(tag:String, values:Map[String, String])
-  def getEvents(tag:String, since:Long = 0, filters:Map[String, String] = Map()):Seq[Map[String, String]]
+  def getEvents(tag:String, since:Long, filters:Map[String, String]):Seq[Map[String, String]]
+  def getEvents(since:Long, filters:Map[String, String]):Seq[Map[String, String]]
+
 }
