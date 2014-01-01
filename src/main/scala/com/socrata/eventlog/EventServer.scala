@@ -2,17 +2,23 @@ package com.socrata.eventlog
 
 import com.twitter.util.Await
 import com.twitter.server.TwitterServer
-import com.twitter.finagle.http.{Request, Response, Method, HttpMuxer}
+import com.twitter.finagle.http._
 import com.netflix.curator.framework.{CuratorFramework, CuratorFrameworkFactory}
 import com.netflix.curator.framework.state.{ConnectionStateListener, ConnectionState}
 import com.netflix.curator.framework.api.UnhandledErrorListener
 import com.netflix.curator.{RetrySleeper, RetryPolicy}
 import com.twitter.finagle.http.service.RoutingService
 import com.twitter.finagle.http.path._
-import com.twitter.finagle.Service
+import com.twitter.finagle.{HttpServer, Service}
 import com.twitter.finagle
 import org.jboss.netty.handler.codec.http.HttpResponseStatus
 import com.twitter.util.Future
+import com.twitter.common.stats.Stats
+import com.twitter.server.handler.FinagleTracing
+import com.twitter.finagle.tracing.{Tracer, Trace}
+import com.twitter.finagle.zipkin.thrift.ZipkinTracer
+import scala.Some
+import com.twitter.finagle.http.path./
 
 
 class ErrorService(method:Object, path:Path) extends finagle.Service[Request, Response] {
@@ -63,9 +69,10 @@ object EventServer extends TwitterServer with UnhandledErrorListener with Connec
 
   def main() = {
     log.info("Starting server with port: " + adminPort)
+    //val zipkinTracer = ZipkinTracer.mk(sampleRate = 1.0F)
+    //Trace.pushTracer(zipkinTracer)
+    //Http.serve()
 
-
-    //HttpMuxer.addHandler("/eventlog/", new EventLogService(store))
     HttpMuxer.addRichHandler("/eventlog/", Router.service)
     // Connect to Zookeeper
     client.start()

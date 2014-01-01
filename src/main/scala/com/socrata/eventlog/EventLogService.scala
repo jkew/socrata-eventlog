@@ -16,19 +16,38 @@ import com.rojoma.json.ast.{JNumber, JString}
  * Retrieves Events
  */
 class EventLogService(eventType:Option[String], since:Long, store:EventStore) extends Service[Request, Response] {
-  val log:Logger = Logger.get(this.getClass)
+  import EventLogService._
 
   def apply(request:Request) = {
     val response = Response(request.getProtocolVersion, HttpResponseStatus.OK)
     val params = request.getParams().asScala map {
       entry => (entry.getKey, entry.getValue)
     }
-    val allEvents = if (eventType.isDefined) store.getEvents(eventType.get, since, params.toMap)
-                    else store.getEvents(since, params.toMap)
+    val (filters, paging) = params.toMap.partition {
+      case (SKIP_PARAM, v) => false
+      case (LIMIT_PARAM, v) => false
+      case (k, v) => true
+    }
 
-    response.setContent(copiedBuffer(JsonUtil.renderJson(allEvents.toList, pretty=true), UTF_8))
-    Future(response)
+    val skip = paging.get(SKIP_PARAM).getOrElse(SKIP_DEFAULT).toInt
+    val limit = paging.get(LIMIT_PARAM).getOrElse(LIMIT_DEFAULT).toInt
+
+    Future {
+      val allEvents = if (eventType.isDefined) store.getEvents(eventType.get, since,filters, skip, limit)
+      else store.getEvents(since, filters, skip, limit)
+      response.setContentTypeJson()
+      response.setContent(copiedBuffer(JsonUtil.renderJson(allEvents.toList, pretty=true), UTF_8))
+      response
+    }
   }
+}
+
+object EventLogService {
+  val log:Logger = Logger.get(this.getClass)
+  val SKIP_PARAM = "skip"
+  val LIMIT_PARAM = "limit"
+  val SKIP_DEFAULT = "0"
+  val LIMIT_DEFAULT = "1000"
 }
 
 class EventListService(store:EventStore) extends Service[Request, Response] {
