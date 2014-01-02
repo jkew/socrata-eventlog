@@ -71,18 +71,18 @@ object EventServer extends TwitterServer with UnhandledErrorListener with Connec
     log.info("Starting server with port: " + adminPort)
 
     // Setup zipkin
-    val zipkin =  ZipkinTracer.mk(zipkinHost(), zipkinPort(), statsReceiver, zipkinSampleRate())
+    //val zipkin =  ZipkinTracer.mk(zipkinHost(), zipkinPort(), statsReceiver, zipkinSampleRate())
 
-    val address =new InetSocketAddress(7777)
-    ServerBuilder()
-        .codec(new RichHttp[Request](finagle.http.Http()))      // Use HTTP
-        .bindTo(address)                                        // Bind to Port
-        .name("eventlog")                                       // Our Name
-        .requestTimeout(Duration(500, TimeUnit.MILLISECONDS))   // All Requests should be served in under 500ms
-        .tracer(zipkin)                                         // Add in Tracing
-        .build(Router.service)                                  // Add the service
+    //val address =new InetSocketAddress(7777)
+    //ServerBuilder()
+    //    .codec(new RichHttp[Request](finagle.http.Http()))      // Use HTTP
+    //    .bindTo(address)                                        // Bind to Port
+    //    .name("eventlog")                                       // Our Name
+    //    .requestTimeout(Duration(500, TimeUnit.MILLISECONDS))   // All Requests should be served in under 500ms
+    //    .tracer(zipkin)                                         // Add in Tracing
+    //    .build(Router.service)                                  // Add the service
 
-    //HttpMuxer.addRichHandler("/eventlog/", Router.service)
+    HttpMuxer.addRichHandler("/eventlog/", Router.service)
     // Tracing is enabled by default in ServerBuilder
     Trace.disable()
 
