@@ -11,6 +11,9 @@ import com.twitter.logging.Logger
 import com.twitter.finagle.http.{Response, Request}
 import com.rojoma.json.codec.JsonCodec
 import com.rojoma.json.ast.{JNumber, JString}
+import com.twitter.common.stats.Stats
+import com.twitter.finagle.tracing.Trace
+import com.twitter.server.handler.FinagleTracing
 
 /**
  * Retrieves Events
@@ -33,11 +36,13 @@ class EventLogService(eventType:Option[String], since:Long, store:EventStore) ex
     val limit = paging.get(LIMIT_PARAM).getOrElse(LIMIT_DEFAULT).toInt
 
     Future {
-      val allEvents = if (eventType.isDefined) store.getEvents(eventType.get, since,filters, skip, limit)
-      else store.getEvents(since, filters, skip, limit)
-      response.setContentTypeJson()
-      response.setContent(copiedBuffer(JsonUtil.renderJson(allEvents.toList, pretty=true), UTF_8))
-      response
+      Trace.traceService("events", request.getUri()) {
+        val allEvents = if (eventType.isDefined) store.getEvents(eventType.get, since,filters, skip, limit)
+        else store.getEvents(since, filters, skip, limit)
+        response.setContentTypeJson()
+        response.setContent(copiedBuffer(JsonUtil.renderJson(allEvents.toList, pretty=true), UTF_8))
+        response
+      }
     }
   }
 }
@@ -54,9 +59,12 @@ class EventListService(store:EventStore) extends Service[Request, Response] {
   val log:Logger = Logger.get(this.getClass)
 
   def apply(request:Request) = {
-    val response = Response(request.getProtocolVersion, HttpResponseStatus.OK)
-    val eventList = store.eventTypes
-    response.setContent(copiedBuffer(JsonUtil.renderJson(eventList.toList, pretty=true), UTF_8))
-    Future(response)
+    Trace.traceService("eventlogs", "list") {
+      val response = Response(request.getProtocolVersion, HttpResponseStatus.OK)
+      val eventList = store.eventTypes
+      response.setContent(copiedBuffer(JsonUtil.renderJson(eventList.toList, pretty=true), UTF_8))
+      Future(response)
+
+    }
   }
 }

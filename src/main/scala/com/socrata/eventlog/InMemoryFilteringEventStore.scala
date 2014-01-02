@@ -1,5 +1,7 @@
 package com.socrata.eventlog
 
+import com.twitter.finagle.tracing.Trace
+
 /**
  * Applies additional in-memory filtering a top an event stream for backends
  */
@@ -8,20 +10,24 @@ abstract class InMemoryFilteringEventStore extends EventStore {
   protected def getRawEventStream(eventType:Option[String], since:Option[Long], filters:Option[Map[String, String]], skipHint:Int, limitHint:Int):Stream[Map[String,String]]
 
   def getEvents(eventType: String, since:Long, filters: Map[String, String], skip:Int, limit:Int):Stream[Map[String, String]] = {
-    pageFilter(skip, limit,
-      sortByTimeFilter(
-        propertyFilter(filters,
-          timeFilter(since,
-            eventFilter(eventType,
-              getRawEventStream(Option(eventType), Option(since), Option(filters), skip, limit))))))
+    Trace.traceService("getEvents", eventType) {
+      pageFilter(skip, limit,
+        sortByTimeFilter(
+          propertyFilter(filters,
+            timeFilter(since,
+              eventFilter(eventType,
+                getRawEventStream(Option(eventType), Option(since), Option(filters), skip, limit))))))
+    }
   }
 
   def getEvents(since:Long, filters: Map[String, String], skip:Int, limit:Int):Stream[Map[String,String]] = {
-    pageFilter(skip, limit,
-      sortByTimeFilter(
-        propertyFilter(filters,
-          timeFilter(since,
-            getRawEventStream(None, Option(since), Option(filters), skip, limit)))))
+    Trace.traceService("getEvents", "all") {
+      pageFilter(skip, limit,
+        sortByTimeFilter(
+          propertyFilter(filters,
+            timeFilter(since,
+              getRawEventStream(None, Option(since), Option(filters), skip, limit)))))
+    }
   }
 
   def timeFilter(since:Long, e:Stream[Map[String, String]]):Stream[Map[String, String]] = {

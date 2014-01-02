@@ -1,24 +1,21 @@
 package com.socrata.eventlog
 
-import com.twitter.util.Await
+import com.twitter.util.{Duration, Await, Future}
 import com.twitter.server.TwitterServer
 import com.twitter.finagle.http._
 import com.netflix.curator.framework.{CuratorFramework, CuratorFrameworkFactory}
 import com.netflix.curator.framework.state.{ConnectionStateListener, ConnectionState}
 import com.netflix.curator.framework.api.UnhandledErrorListener
 import com.netflix.curator.{RetrySleeper, RetryPolicy}
-import com.twitter.finagle.http.service.RoutingService
 import com.twitter.finagle.http.path._
-import com.twitter.finagle.{HttpServer, Service}
 import com.twitter.finagle
 import org.jboss.netty.handler.codec.http.HttpResponseStatus
-import com.twitter.util.Future
-import com.twitter.common.stats.Stats
-import com.twitter.server.handler.FinagleTracing
-import com.twitter.finagle.tracing.{Tracer, Trace}
 import com.twitter.finagle.zipkin.thrift.ZipkinTracer
 import scala.Some
-import com.twitter.finagle.http.path./
+import com.twitter.finagle.builder.ServerBuilder
+import java.net.InetSocketAddress
+import java.util.concurrent.TimeUnit
+import com.twitter.finagle.tracing.Trace
 
 
 class ErrorService(method:Object, path:Path) extends finagle.Service[Request, Response] {
@@ -48,8 +45,12 @@ object Router {
  */
 object EventServer extends TwitterServer with UnhandledErrorListener with ConnectionStateListener {
 
-  val zkConnect = flag("zk", "localhost:2181", "zookeeper connection string")
-  val amqUri = flag("amqUri", "tcp://localhost:61616", "amq connection string")
+  val zkConnect        = flag("zk", "localhost:2181", "zookeeper connection string")
+  val amqUri           = flag("amqUri", "tcp://localhost:61616", "amq connection string")
+  val zipkinHost       = flag("zipkinHost", "localhost", "hostname for zipkin/scribe")
+  val zipkinPort       = flag("zipkinPort", 9410, "port for zipkin collector/scribe")
+  val zipkinSampleRate = flag("zipkinSampleRate", 1.0F, "zipkin sample rate")
+
   val store = new MemoryEventStore
 
   val zkMinRetryInterval = 60000
@@ -66,16 +67,29 @@ object EventServer extends TwitterServer with UnhandledErrorListener with Connec
   client.getConnectionStateListenable.addListener(this)
   val processor = new EventLogProcessor(client, store, amqUri())
 
-
   def main() = {
     log.info("Starting server with port: " + adminPort)
-    //val zipkinTracer = ZipkinTracer.mk(sampleRate = 1.0F)
-    //Trace.pushTracer(zipkinTracer)
-    //Http.serve()
 
-    HttpMuxer.addRichHandler("/eventlog/", Router.service)
+    // Setup zipkin
+    val zipkin =  ZipkinTracer.mk(zipkinHost(), zipkinPort(), statsReceiver, zipkinSampleRate())
+
+    val address =new InetSocketAddress(7777)
+    ServerBuilder()
+        .codec(new RichHttp[Request](finagle.http.Http()))      // Use HTTP
+        .bindTo(address)                                        // Bind to Port
+        .name("eventlog")                                       // Our Name
+        .requestTimeout(Duration(500, TimeUnit.MILLISECONDS))   // All Requests should be served in under 500ms
+        .tracer(zipkin)                                         // Add in Tracing
+        .build(Router.service)                                  // Add the service
+
+    //HttpMuxer.addRichHandler("/eventlog/", Router.service)
+    // Tracing is enabled by default in ServerBuilder
+    Trace.disable()
+
     // Connect to Zookeeper
     client.start()
+
+    // Setup exit handler
     onExit {
       log.info("Shutting down processor")
       processor.close()
@@ -90,6 +104,7 @@ object EventServer extends TwitterServer with UnhandledErrorListener with Connec
 
     // Ready to Serve Requests
     Await.ready(adminHttpServer)
+
   }
 
   // Any negative state change to ZK will result in a complete shutdown of this server
