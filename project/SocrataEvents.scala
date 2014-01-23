@@ -45,6 +45,7 @@ object SocrataEvents extends Build {
       "com.socrata" %% "eurybates" % "0.1.1",
       "com.netflix.curator" % "curator-x-discovery" % "1.3.3",
       "com.netflix.curator" % "curator-framework" % "1.3.3",
+      "com.netflix.astyanax" % "astyanax" % "1.56.44",
       "org.slf4j" % "slf4j-api" % slf4jVersion,
       "org.slf4j" % "slf4j-log4j12" % slf4jVersion,
       "log4j" % "log4j" % "1.2.16"

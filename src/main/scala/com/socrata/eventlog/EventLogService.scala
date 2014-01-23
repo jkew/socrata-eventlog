@@ -14,6 +14,7 @@ import com.rojoma.json.ast.{JNumber, JString}
 import com.twitter.common.stats.Stats
 import com.twitter.finagle.tracing.Trace
 import com.twitter.server.handler.FinagleTracing
+import com.socrata.eventlog.store.EventStore
 
 /**
  * Retrieves Events

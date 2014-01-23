@@ -1,32 +1,36 @@
-package com.socrata.eventlog
+package com.socrata.eventlog.store
 
 import com.twitter.finagle.tracing.Trace
+import com.twitter.util.Future
 
 /**
  * Applies additional in-memory filtering a top an event stream for backends
  */
 abstract class InMemoryFilteringEventStore extends EventStore {
 
-  protected def getRawEventStream(eventType:Option[String], since:Option[Long], filters:Option[Map[String, String]], skipHint:Int, limitHint:Int):Stream[Map[String,String]]
+  protected def getRawEventStream(eventType:Option[String], since:Option[Long], filters:Option[Map[String, String]], skipHint:Int, limitHint:Int):Future[Stream[Map[String,String]]]
 
-  def getEvents(eventType: String, since:Long, filters: Map[String, String], skip:Int, limit:Int):Stream[Map[String, String]] = {
+  def getEvents(eventType: String, since:Long, filters: Map[String, String], skip:Int, limit:Int):Future[Stream[Map[String, String]]] = {
     Trace.traceService("getEvents", eventType) {
-      pageFilter(skip, limit,
-        sortByTimeFilter(
-          propertyFilter(filters,
-            timeFilter(since,
-              eventFilter(eventType,
-                getRawEventStream(Option(eventType), Option(since), Option(filters), skip, limit))))))
+      getRawEventStream(Option(eventType), Option(since), Option(filters), skip, limit) onSuccess {
+        stream => pageFilter(skip, limit,
+          sortByTimeFilter(
+            propertyFilter(filters,
+              timeFilter(since,
+                eventFilter(eventType,
+                  stream)))))
+      }
     }
   }
 
   def getEvents(since:Long, filters: Map[String, String], skip:Int, limit:Int):Stream[Map[String,String]] = {
     Trace.traceService("getEvents", "all") {
-      pageFilter(skip, limit,
-        sortByTimeFilter(
-          propertyFilter(filters,
-            timeFilter(since,
-              getRawEventStream(None, Option(since), Option(filters), skip, limit)))))
+      getRawEventStream(None, Option(since), Option(filters), skip, limit) onSuccess {
+        stream => pageFilter(skip, limit,
+          sortByTimeFilter(
+            propertyFilter(filters,
+              timeFilter(since, stream))))
+      }
     }
   }
 

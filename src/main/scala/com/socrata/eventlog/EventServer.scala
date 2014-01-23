@@ -12,6 +12,7 @@ import com.twitter.finagle
 import org.jboss.netty.handler.codec.http.HttpResponseStatus
 import scala.Some
 import com.twitter.finagle.tracing.Trace
+import com.socrata.eventlog.store.MemoryEventStore
 
 // Routes for Services
 object Router {
