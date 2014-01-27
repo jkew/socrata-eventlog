@@ -30,7 +30,7 @@ import scala.collection.JavaConverters._
 class CassandraEventStore(daysTTL:Int) extends InMemoryFilteringEventStore {
   import CassandraEventStore._
 
-  protected def getRawEventStream(eventType: Option[String], since: Option[Long], filters: Option[Map[String, String]], skipHint: Int, limitHint: Int) = {
+  protected def getRawEventStream(eventType: Option[String], since: Option[Long], filters: Option[Map[String, String]], skipHint: Int, limitHint: Int):Future[Stream[Map[String, String]]] = {
     val event = eventType match {
       case Some(e) => e
       case None => throw new UnsupportedOperationException("Event Type required")
@@ -47,19 +47,12 @@ class CassandraEventStore(daysTTL:Int) extends InMemoryFilteringEventStore {
         }
       }
     }
-    //   collect intersection of uuids of each filter query for whitelist
-    val whitelist:Future[Set[String]] = if (filters.isDefined && filters.size > 0) {
-      //   flatten out the filter whitelist; if it exists
-      Future.collect(uuidMatches.toSeq).flatten
-    } else {
-      //   perform range scan on {eventType} for timestamp to create whitelist
-      queryIndex(getIndexKey(event), range)
-    }
 
     for {
-      uuids <- whitelist
-      events <- uuids map { uuid => queryEvent(event, uuid) }
-    } yield List(events).toStream
+      uuids <- uuidMatches.toSet
+      whitelist <- if (filters.isDefined && filters.size > 0) uuids.flatten else  queryIndex(getIndexKey(event), range)
+      events <- whitelist map { u => queryEvent(event, u) }
+    } yield List(events)
   }
 
   def eventTypes = null
