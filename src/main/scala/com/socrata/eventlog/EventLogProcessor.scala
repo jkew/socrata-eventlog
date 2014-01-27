@@ -11,7 +11,6 @@ import java.util.UUID
 import com.rojoma.json.jpath.JPath
 import com.rojoma.json.ast.{JNumber, JString, JValue, JObject}
 import com.rojoma.json.zipper.JsonZipper
-import com.socrata.eventlog.store.EventStore
 
 /**
  * Takes events off a eurybates queue and puts them into a backend

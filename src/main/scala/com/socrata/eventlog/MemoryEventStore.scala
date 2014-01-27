@@ -1,9 +1,9 @@
-package com.socrata.eventlog.store
+package com.socrata.eventlog
 
 import scala.collection.mutable
 import com.twitter.logging.Logger
 import com.twitter.finagle.tracing.Trace
-import com.twitter.util.{Future, RingBuffer}
+import com.twitter.util.RingBuffer
 
 /**
  * EventStore in Memory.
@@ -16,7 +16,7 @@ class MemoryEventStore(size:Int) extends InMemoryFilteringEventStore {
 
   protected def getRawEventStream(eventType:Option[String], since:Option[Long], filters:Option[Map[String, String]], skipHint:Int, limitHint:Int) = synchronized {
     Trace.traceService("getRawEventStream", eventType.getOrElse("all")) {
-      Future(events.toStream)
+      events.toStream
     }
   }
 
